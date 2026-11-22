@@ -539,13 +539,17 @@
       scene.fog = new THREE.FogExp2(0x211d1a, 0.022);
 
       const camera = new THREE.PerspectiveCamera(44, window.innerWidth / window.innerHeight, 0.1, 80);
-      const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: "high-performance" });
+      const renderer = new THREE.WebGLRenderer({
+        antialias: true,
+        powerPreference: "high-performance"
+      });
       renderer.setSize(window.innerWidth, window.innerHeight);
       renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
       renderer.shadowMap.enabled = true;
       renderer.shadowMap.type = THREE.PCFSoftShadowMap;
       renderer.toneMapping = THREE.ACESFilmicToneMapping;
       renderer.toneMappingExposure = 1.15;
+      renderer.localClippingEnabled = true;
       container.appendChild(renderer.domElement);
 
       const hemiLight = new THREE.HemisphereLight(0xfff4e0, 0x3b2f26, 0.95);
@@ -592,45 +596,90 @@
         return map;
       }
 
-      // 木板孔洞切面內壁貼圖（呈現橫向木紋與自上而下的深度陰影）
-      function createHoleWallTexture() {
+      // 依手繪示意圖建立「上側月牙形木板側壁厚度 ＋ 下側深黑貫穿孔洞」的高質感立體貼圖
+      function createHoleDepthTexture() {
         const c = document.createElement("canvas");
         c.width = 512;
-        c.height = 256;
+        c.height = 512;
         const ctx = c.getContext("2d");
+        ctx.clearRect(0, 0, 512, 512);
 
-        ctx.fillStyle = "#7a4c24";
-        ctx.fillRect(0, 0, 512, 256);
+        const cx = 256;
+        const cy = 256;
+        const r = 216;
 
-        // 橫向木層紋理
-        for (let i = 0; i < 110; i++) {
-          const y = Math.random() * 256;
-          const h = 1 + Math.random() * 3.5;
-          ctx.fillStyle = i % 2 === 0 ? "#47270e" : "#a86e39";
-          ctx.globalAlpha = 0.14 + Math.random() * 0.18;
-          ctx.fillRect(0, y, 512, h);
+        ctx.save();
+        // 裁切為洞口正圓
+        ctx.beginPath();
+        ctx.arc(cx, cy, r, 0, Math.PI * 2);
+        ctx.clip();
+
+        // 1. 洞口內部先填滿木板厚度的垂直切面木紋（上方月牙部分會顯露出來）
+        const wallGrad = ctx.createLinearGradient(0, cy - r, 0, cy + r * 0.45);
+        wallGrad.addColorStop(0.0, "#b88d5d");
+        wallGrad.addColorStop(0.28, "#8c5c2e");
+        wallGrad.addColorStop(0.65, "#4d2c10");
+        wallGrad.addColorStop(1.0, "#140903");
+        ctx.fillStyle = wallGrad;
+        ctx.fillRect(cx - r, cy - r, r * 2, r * 2);
+
+        // 垂直木板厚度纖維紋理
+        for (let i = 0; i < 95; i++) {
+          const x = cx - r + Math.random() * (r * 2);
+          const w = 1.5 + Math.random() * 3.5;
+          ctx.fillStyle = i % 2 === 0 ? "rgba(42, 20, 6, 0.25)" : "rgba(235, 198, 150, 0.16)";
+          ctx.fillRect(x, cy - r, w, r * 1.4);
         }
-        ctx.globalAlpha = 1;
 
-        // 垂直深度漸層陰影（頂部受光較亮，越往下越深邃）
-        const grad = ctx.createLinearGradient(0, 0, 0, 256);
-        grad.addColorStop(0.0, "rgba(255, 232, 195, 0.22)");
-        grad.addColorStop(0.18, "rgba(35, 18, 6, 0.15)");
-        grad.addColorStop(0.65, "rgba(12, 6, 2, 0.68)");
-        grad.addColorStop(1.0, "rgba(2, 1, 1, 0.96)");
-        ctx.fillStyle = grad;
-        ctx.fillRect(0, 0, 512, 256);
+        // 上緣內側細微陰影折線，凸顯板面到洞壁的轉折厚度
+        ctx.beginPath();
+        ctx.arc(cx, cy, r, Math.PI, Math.PI * 2);
+        ctx.lineWidth = 10;
+        ctx.strokeStyle = "rgba(32, 16, 5, 0.55)";
+        ctx.stroke();
+
+        // 2. 下方偏移圓形深黑貫穿孔洞（留下上方約 36% 高度的月牙形木板厚度側壁，完全符合透視幾何）
+        const offsetY = r * 0.42;
+        ctx.beginPath();
+        ctx.arc(cx, cy + offsetY, r * 0.98, 0, Math.PI * 2);
+        ctx.fillStyle = "#060505";
+        ctx.fill();
+
+        // 深淵孔洞上緣與側壁交界處的柔和環境遮蔽陰影（AO）
+        const aoGrad = ctx.createRadialGradient(cx, cy + offsetY, r * 0.72, cx, cy + offsetY, r * 1.04);
+        aoGrad.addColorStop(0.0, "rgba(0, 0, 0, 1)");
+        aoGrad.addColorStop(0.75, "rgba(0, 0, 0, 0.88)");
+        aoGrad.addColorStop(1.0, "rgba(0, 0, 0, 0)");
+        ctx.fillStyle = aoGrad;
+        ctx.beginPath();
+        ctx.arc(cx, cy + offsetY, r * 1.04, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.restore();
+
+        // 3. 外圈紫紅色警戒環（與你圖中的洋紅外圈一致）
+        ctx.beginPath();
+        ctx.arc(cx, cy, r + 12, 0, Math.PI * 2);
+        ctx.lineWidth = 22;
+        ctx.strokeStyle = "#c026d3";
+        ctx.stroke();
+
+        // 外環微亮內邊緣增加立體精緻度
+        ctx.beginPath();
+        ctx.arc(cx, cy, r + 1, 0, Math.PI * 2);
+        ctx.lineWidth = 3;
+        ctx.strokeStyle = "rgba(255, 225, 250, 0.45)";
+        ctx.stroke();
 
         const tex = new THREE.CanvasTexture(c);
-        tex.wrapS = THREE.RepeatWrapping;
-        tex.wrapT = THREE.ClampToEdgeWrapping;
+        tex.anisotropy = 4;
         return tex;
       }
 
       const oakMap = createWoodTextures("#d6b282", "#8a5a2b", 2, 4);
       const walnutMap = createWoodTextures("#5c3821", "#2b160a", 1, 3);
       const burlMap = createWoodTextures("#9c4f24", "#3d1807", 2, 2);
-      const holeWallMap = createHoleWallTexture();
+      const holeDepthTex = createHoleDepthTexture();
 
       const tableMesh = new THREE.Mesh(
         new THREE.PlaneGeometry(46, 46),
@@ -734,12 +783,15 @@
       const markersGroup = new THREE.Group();
       pivotGroup.add(markersGroup);
 
+      // 木球：掉入陷阱洞下沉時，由木板表面平面自然裁切下半部，呈現真正掉入板內厚度的效果
+      const boardSurfaceClip = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0.01);
       const ballMat = new THREE.MeshPhysicalMaterial({
         map: burlMap,
         roughness: 0.18,
         metalness: 0.05,
         clearcoat: 0.85,
-        clearcoatRoughness: 0.12
+        clearcoatRoughness: 0.12,
+        clippingPlanes: []
       });
       const ballMesh = new THREE.Mesh(new THREE.SphereGeometry(BALL_RADIUS, 32, 32), ballMat);
       ballMesh.castShadow = true;
@@ -758,7 +810,6 @@
         };
       }
 
-      // 第1~10大關圈數為 1~10 個；第11大關起圈數一律固定為 10 個
       function getRingCount(stage) {
         return Math.min(10, stage);
       }
@@ -774,7 +825,6 @@
           return r;
         }
 
-        // 每 10 整數關（10, 20, 30, 40...）從最小直徑（半徑 0.32，直徑 0.64）開始
         const decadeOffset = stage % 10;
         const minR = 0.32;
         const maxR = 0.52;
@@ -784,7 +834,6 @@
         return +r.toFixed(2);
       }
 
-      // 高對比度定位圈數字貼圖
       function createNumberTexture(num, status) {
         const c = document.createElement("canvas");
         c.width = 256;
@@ -843,52 +892,19 @@
         return new THREE.CanvasTexture(c);
       }
 
-      // 建立具備真實木板厚度的立體貫穿陷阱洞
+      // 建立具備「上方木板切面厚度 ＋ 下方深黑孔洞 ＋ 紫紅外環」的陷阱洞網格
       function createTrapMesh(radius) {
-        const g = new THREE.Group();
-        const wallDepth = BOARD_THICKNESS; // 與木板厚度一致 (0.28)
-
-        // 1. 貫穿木板厚度的圓柱內壁（渲染內側，呈現垂直切面木紋與深度漸層陰影）
-        const innerWall = new THREE.Mesh(
-          new THREE.CylinderGeometry(radius, radius, wallDepth, 40, 1, true),
+        const disc = new THREE.Mesh(
+          new THREE.CircleGeometry(radius * 1.18, 44),
           new THREE.MeshBasicMaterial({
-            map: holeWallMap,
-            side: THREE.BackSide
+            map: holeDepthTex,
+            transparent: true,
+            depthWrite: false
           })
         );
-        innerWall.position.y = -wallDepth * 0.5 + 0.004;
-
-        // 2. 洞底深淵封口（位于木板底面位置，遮蔽板面並營造貫穿深度）
-        const holeBottom = new THREE.Mesh(
-          new THREE.CircleGeometry(radius * 1.005, 40),
-          new THREE.MeshBasicMaterial({ color: 0x040303 })
-        );
-        holeBottom.rotation.x = -Math.PI / 2;
-        holeBottom.position.y = -wallDepth + 0.006;
-
-        // 3. 洞口木板切角內緣環（模擬鑽孔倒角亮邊）
-        const chamferRim = new THREE.Mesh(
-          new THREE.RingGeometry(radius * 0.96, radius * 1.04, 40),
-          new THREE.MeshStandardMaterial({
-            color: 0xb88958,
-            roughness: 0.45,
-            metalness: 0.05,
-            side: THREE.DoubleSide
-          })
-        );
-        chamferRim.rotation.x = -Math.PI / 2;
-        chamferRim.position.y = 0.005;
-
-        // 4. 外圈紫紅色警戒環
-        const alertRim = new THREE.Mesh(
-          new THREE.RingGeometry(radius * 1.04, radius * 1.15, 40),
-          new THREE.MeshBasicMaterial({ color: 0xc026d3, side: THREE.DoubleSide })
-        );
-        alertRim.rotation.x = -Math.PI / 2;
-        alertRim.position.y = 0.006;
-
-        g.add(innerWall, holeBottom, chamferRim, alertRim);
-        return g;
+        disc.rotation.x = -Math.PI / 2;
+        disc.position.y = 0.007;
+        return disc;
       }
 
       function convertRingToTrap(ring) {
@@ -897,7 +913,7 @@
         markersGroup.remove(ring.discMesh);
         markersGroup.remove(ring.progMesh);
         const trapMesh = createTrapMesh(ring.radius);
-        trapMesh.position.set(ring.x, 0, ring.z);
+        trapMesh.position.set(ring.x, 0.007, ring.z);
         markersGroup.add(trapMesh);
         playTone(260, "triangle", 0.18, 0.1, 140);
         updateHUD();
@@ -969,6 +985,7 @@
         state.fallProgress = 0;
         state.currentTargetIdx = 0;
         state.dwellTimer = 0;
+        ballMat.clippingPlanes = [];
 
         const rails = getRailConfig(state.stage);
         railNear.visible = rails.near;
@@ -1030,7 +1047,7 @@
         if (hasTrap) {
           const tp = coords[ringCount];
           const trapMesh = createTrapMesh(radius);
-          trapMesh.position.set(tp.x, 0, tp.z);
+          trapMesh.position.set(tp.x, 0.007, tp.z);
           markersGroup.add(trapMesh);
           state.traps.push({ x: tp.x, z: tp.z, radius, mesh: trapMesh });
         }
@@ -1240,14 +1257,22 @@
         pivotGroup.rotation.x = -state.pitch;
         pivotGroup.rotation.z = -state.roll;
 
+        // 同步更新木板表面裁切平面（僅在球掉入陷阱洞下沉時裁切下半部球體）
         if (state.fallMode === "hole") {
+          pivotGroup.updateMatrixWorld();
+          const normal = new THREE.Vector3(0, 1, 0).applyQuaternion(pivotGroup.quaternion).normalize();
+          const worldOrigin = new THREE.Vector3(0, 0.005, 0).applyMatrix4(pivotGroup.matrixWorld);
+          boardSurfaceClip.setFromNormalAndCoplanarPoint(normal, worldOrigin);
+          ballMat.clippingPlanes = [boardSurfaceClip];
+
           state.fallProgress += dt * 2.5;
           state.ballPos.x += (state.fallTarget.x - state.ballPos.x) * Math.min(1, dt * 10);
           state.ballPos.z += (state.fallTarget.z - state.ballPos.z) * Math.min(1, dt * 10);
-          state.ballPos.y = BALL_RADIUS - state.fallProgress * 1.1;
+          state.ballPos.y = BALL_RADIUS - state.fallProgress * 0.72;
           ballMesh.position.copy(state.ballPos);
           if (state.fallProgress >= 0.85) {
             state.fallMode = null;
+            ballMat.clippingPlanes = [];
             handleFail("木球掉入陷阱洞！", "重心落入陷阱洞範圍，是否繼續挑戰該關？");
           }
           return;
@@ -1506,6 +1531,7 @@
         e.stopPropagation();
         ensureAudio();
         state.fallMode = null;
+        ballMat.clippingPlanes = [];
         state.ballPos.set(0, BALL_RADIUS, BOARD_LENGTH - 1.15);
         state.ballVel.set(0, 0, 0);
         applyInputAxes(0, 0);
