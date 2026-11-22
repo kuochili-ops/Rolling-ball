@@ -592,9 +592,45 @@
         return map;
       }
 
+      // 木板孔洞切面內壁貼圖（呈現橫向木紋與自上而下的深度陰影）
+      function createHoleWallTexture() {
+        const c = document.createElement("canvas");
+        c.width = 512;
+        c.height = 256;
+        const ctx = c.getContext("2d");
+
+        ctx.fillStyle = "#7a4c24";
+        ctx.fillRect(0, 0, 512, 256);
+
+        // 橫向木層紋理
+        for (let i = 0; i < 110; i++) {
+          const y = Math.random() * 256;
+          const h = 1 + Math.random() * 3.5;
+          ctx.fillStyle = i % 2 === 0 ? "#47270e" : "#a86e39";
+          ctx.globalAlpha = 0.14 + Math.random() * 0.18;
+          ctx.fillRect(0, y, 512, h);
+        }
+        ctx.globalAlpha = 1;
+
+        // 垂直深度漸層陰影（頂部受光較亮，越往下越深邃）
+        const grad = ctx.createLinearGradient(0, 0, 0, 256);
+        grad.addColorStop(0.0, "rgba(255, 232, 195, 0.22)");
+        grad.addColorStop(0.18, "rgba(35, 18, 6, 0.15)");
+        grad.addColorStop(0.65, "rgba(12, 6, 2, 0.68)");
+        grad.addColorStop(1.0, "rgba(2, 1, 1, 0.96)");
+        ctx.fillStyle = grad;
+        ctx.fillRect(0, 0, 512, 256);
+
+        const tex = new THREE.CanvasTexture(c);
+        tex.wrapS = THREE.RepeatWrapping;
+        tex.wrapT = THREE.ClampToEdgeWrapping;
+        return tex;
+      }
+
       const oakMap = createWoodTextures("#d6b282", "#8a5a2b", 2, 4);
       const walnutMap = createWoodTextures("#5c3821", "#2b160a", 1, 3);
       const burlMap = createWoodTextures("#9c4f24", "#3d1807", 2, 2);
+      const holeWallMap = createHoleWallTexture();
 
       const tableMesh = new THREE.Mesh(
         new THREE.PlaneGeometry(46, 46),
@@ -748,7 +784,7 @@
         return +r.toFixed(2);
       }
 
-      // 高對比度定位圈數字貼圖（深色底襯 + 粗描邊 + 大字級）
+      // 高對比度定位圈數字貼圖
       function createNumberTexture(num, status) {
         const c = document.createElement("canvas");
         c.width = 256;
@@ -756,7 +792,6 @@
         const ctx = c.getContext("2d");
         ctx.clearRect(0, 0, 256, 256);
 
-        // 深色半透明底圓，確保淺色木紋上數字高對比清晰可見
         ctx.beginPath();
         ctx.arc(128, 128, 112, 0, Math.PI * 2);
         if (status === "active") {
@@ -776,7 +811,6 @@
         ctx.fill();
         ctx.stroke();
 
-        // 內圈微光環強化焦點
         if (status === "active") {
           ctx.beginPath();
           ctx.arc(128, 128, 94, 0, Math.PI * 2);
@@ -790,7 +824,6 @@
         ctx.textAlign = "center";
         ctx.textBaseline = "middle";
 
-        // 粗黑外描邊與投影
         ctx.lineJoin = "round";
         ctx.lineWidth = 16;
         ctx.strokeStyle = "rgba(10, 8, 6, 0.92)";
@@ -810,23 +843,51 @@
         return new THREE.CanvasTexture(c);
       }
 
+      // 建立具備真實木板厚度的立體貫穿陷阱洞
       function createTrapMesh(radius) {
         const g = new THREE.Group();
-        const hole = new THREE.Mesh(
-          new THREE.CircleGeometry(radius, 36),
-          new THREE.MeshBasicMaterial({ color: 0x050404 })
-        );
-        hole.rotation.x = -Math.PI / 2;
-        hole.position.y = 0.005;
+        const wallDepth = BOARD_THICKNESS; // 與木板厚度一致 (0.28)
 
-        const rim = new THREE.Mesh(
-          new THREE.RingGeometry(radius * 0.92, radius * 1.12, 36),
+        // 1. 貫穿木板厚度的圓柱內壁（渲染內側，呈現垂直切面木紋與深度漸層陰影）
+        const innerWall = new THREE.Mesh(
+          new THREE.CylinderGeometry(radius, radius, wallDepth, 40, 1, true),
+          new THREE.MeshBasicMaterial({
+            map: holeWallMap,
+            side: THREE.BackSide
+          })
+        );
+        innerWall.position.y = -wallDepth * 0.5 + 0.004;
+
+        // 2. 洞底深淵封口（位于木板底面位置，遮蔽板面並營造貫穿深度）
+        const holeBottom = new THREE.Mesh(
+          new THREE.CircleGeometry(radius * 1.005, 40),
+          new THREE.MeshBasicMaterial({ color: 0x040303 })
+        );
+        holeBottom.rotation.x = -Math.PI / 2;
+        holeBottom.position.y = -wallDepth + 0.006;
+
+        // 3. 洞口木板切角內緣環（模擬鑽孔倒角亮邊）
+        const chamferRim = new THREE.Mesh(
+          new THREE.RingGeometry(radius * 0.96, radius * 1.04, 40),
+          new THREE.MeshStandardMaterial({
+            color: 0xb88958,
+            roughness: 0.45,
+            metalness: 0.05,
+            side: THREE.DoubleSide
+          })
+        );
+        chamferRim.rotation.x = -Math.PI / 2;
+        chamferRim.position.y = 0.005;
+
+        // 4. 外圈紫紅色警戒環
+        const alertRim = new THREE.Mesh(
+          new THREE.RingGeometry(radius * 1.04, radius * 1.15, 40),
           new THREE.MeshBasicMaterial({ color: 0xc026d3, side: THREE.DoubleSide })
         );
-        rim.rotation.x = -Math.PI / 2;
-        rim.position.y = 0.007;
+        alertRim.rotation.x = -Math.PI / 2;
+        alertRim.position.y = 0.006;
 
-        g.add(hole, rim);
+        g.add(innerWall, holeBottom, chamferRim, alertRim);
         return g;
       }
 
@@ -1152,12 +1213,11 @@
       // 物理更新（提高斜面反應速度，並從第60關起逐步加速）
       // ==========================================
       function getSlopeResponseProfile(stage) {
-        // 第60關起每關遞增速度倍率（60關 1.05x -> 99關 1.75x）
         const lateBoost = stage >= 60 ? 1 + (stage - 59) * 0.01875 : 1.0;
         return {
           gravGain: 36.0 * lateBoost,
           tiltResponsiveness: Math.min(34, 18.5 * lateBoost),
-          damping: Math.pow(0.895, 1)
+          damping: 0.895
         };
       }
 
