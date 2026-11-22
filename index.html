@@ -1,0 +1,1476 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <title>𓃥 白六木板平衡</title>
+  <style>
+    :root {
+      --bg-panel: rgba(16, 13, 11, 0.72);
+      --bg-panel-solid: rgba(20, 17, 14, 0.96);
+      --border-gold: rgba(242, 193, 78, 0.34);
+      --gold: #f2c14e;
+      --gold-bright: #ffd978;
+      --red-alert: #ff5c5c;
+      --text-main: #f7f3eb;
+      --text-muted: rgba(247, 243, 235, 0.65);
+    }
+
+    * {
+      box-sizing: border-box;
+      user-select: none;
+      -webkit-user-select: none;
+      -webkit-touch-callout: none;
+    }
+
+    html, body {
+      margin: 0;
+      padding: 0;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background: #1c1917;
+      font-family: -apple-system, BlinkMacSystemFont, "PingFang TC", "Microsoft JhengHei", sans-serif;
+      color: var(--text-main);
+      touch-action: none;
+    }
+
+    #canvas-container {
+      position: fixed;
+      inset: 0;
+      width: 100vw;
+      height: 100vh;
+      z-index: 1;
+    }
+
+    canvas {
+      display: block;
+      width: 100%;
+      height: 100%;
+    }
+
+    /* 極簡頂部狀態列 */
+    #top-bar {
+      position: fixed;
+      top: max(10px, env(safe-area-inset-top));
+      left: 10px;
+      right: 10px;
+      z-index: 20;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      pointer-events: none;
+    }
+
+    .hud-pill {
+      pointer-events: auto;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      background: var(--bg-panel);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border: 1px solid var(--border-gold);
+      border-radius: 999px;
+      padding: 6px 12px;
+      box-shadow: 0 6px 20px rgba(0, 0, 0, 0.38);
+      font-size: 13px;
+    }
+
+    /* 隱藏式特殊選關觸發器 */
+    #glyph-trigger {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      background: transparent;
+      border: none;
+      padding: 0 2px;
+      color: var(--gold-bright);
+      font-size: 18px;
+      cursor: pointer;
+    }
+
+    #glyph-trigger:active {
+      opacity: 0.7;
+    }
+
+    .stage-label {
+      font-weight: 800;
+      color: var(--gold-bright);
+      letter-spacing: 0.3px;
+    }
+
+    .sub-label {
+      color: var(--text-main);
+      font-weight: 600;
+    }
+
+    .meta-tag {
+      font-size: 11px;
+      color: var(--text-muted);
+      font-variant-numeric: tabular-nums;
+    }
+
+    .icon-btn {
+      pointer-events: auto;
+      background: var(--bg-panel);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border: 1px solid rgba(255, 255, 255, 0.16);
+      color: var(--text-main);
+      border-radius: 999px;
+      padding: 6px 11px;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      box-shadow: 0 6px 18px rgba(0, 0, 0, 0.35);
+    }
+
+    .icon-btn:active {
+      transform: scale(0.95);
+      background: rgba(255, 255, 255, 0.15);
+    }
+
+    /* 進球順序迷你浮動列 */
+    #seq-strip {
+      position: fixed;
+      top: calc(max(10px, env(safe-area-inset-top)) + 48px);
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 18;
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      max-width: calc(100vw - 24px);
+      overflow-x: auto;
+      padding: 4px 10px;
+      border-radius: 999px;
+      background: rgba(16, 13, 11, 0.62);
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      pointer-events: none;
+    }
+
+    #seq-strip::-webkit-scrollbar {
+      display: none;
+    }
+
+    .seq-dot {
+      min-width: 21px;
+      height: 21px;
+      border-radius: 50%;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 11px;
+      font-weight: 800;
+      background: rgba(255, 255, 255, 0.08);
+      color: var(--text-muted);
+      border: 1px solid rgba(255, 255, 255, 0.14);
+      flex-shrink: 0;
+    }
+
+    .seq-dot.active {
+      background: var(--gold);
+      color: #191308;
+      border-color: #fff3c4;
+      box-shadow: 0 0 10px rgba(242, 193, 78, 0.7);
+      transform: scale(1.08);
+    }
+
+    .seq-dot.done {
+      background: rgba(82, 196, 122, 0.25);
+      color: #82f0a5;
+      border-color: rgba(82, 196, 122, 0.55);
+    }
+
+    .seq-dot.armed {
+      background: rgba(244, 114, 182, 0.28);
+      color: #fbcfe8;
+      border-color: rgba(244, 114, 182, 0.7);
+    }
+
+    .seq-dot.trapped {
+      background: rgba(168, 85, 247, 0.28);
+      color: #e9d5ff;
+      border-color: rgba(192, 132, 252, 0.65);
+    }
+
+    /* 右下角小巧雙軸觸控墊 */
+    #pad-wrap {
+      position: fixed;
+      right: 14px;
+      bottom: max(14px, env(safe-area-inset-bottom));
+      z-index: 20;
+      display: flex;
+      flex-direction: column;
+      align-items: flex-end;
+      gap: 8px;
+    }
+
+    .mini-controls {
+      display: flex;
+      gap: 6px;
+    }
+
+    .mini-pill {
+      background: var(--bg-panel);
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      color: var(--text-main);
+      border-radius: 999px;
+      padding: 4px 9px;
+      font-size: 11px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+
+    .mini-pill.on {
+      border-color: var(--border-gold);
+      color: var(--gold-bright);
+    }
+
+    #joystick {
+      width: 96px;
+      height: 96px;
+      border-radius: 50%;
+      background: radial-gradient(circle at center, rgba(35, 29, 24, 0.72), rgba(14, 11, 9, 0.85));
+      border: 1px solid var(--border-gold);
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+      position: relative;
+      touch-action: none;
+    }
+
+    #joystick::before, #joystick::after {
+      content: "";
+      position: absolute;
+      background: rgba(242, 193, 78, 0.22);
+    }
+    #joystick::before {
+      left: 50%;
+      top: 12px;
+      bottom: 12px;
+      width: 1px;
+      transform: translateX(-50%);
+    }
+    #joystick::after {
+      top: 50%;
+      left: 12px;
+      right: 12px;
+      height: 1px;
+      transform: translateY(-50%);
+    }
+
+    #joy-knob {
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      background: radial-gradient(circle at 35% 35%, #ffe599, #d69828);
+      border: 2px solid #fff7db;
+      box-shadow: 0 3px 10px rgba(0, 0, 0, 0.55);
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      transform: translate(-50%, -50%);
+      pointer-events: none;
+    }
+
+    /* 彈窗系統 */
+    .modal-backdrop {
+      position: fixed;
+      inset: 0;
+      z-index: 50;
+      background: rgba(8, 7, 6, 0.72);
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      padding: 16px;
+    }
+
+    .modal-card {
+      width: 100%;
+      max-width: 390px;
+      background: var(--bg-panel-solid);
+      border: 1px solid var(--border-gold);
+      border-radius: 20px;
+      padding: 20px;
+      box-shadow: 0 20px 50px rgba(0, 0, 0, 0.7);
+      text-align: center;
+    }
+
+    .modal-title {
+      font-size: 20px;
+      font-weight: 800;
+      color: var(--gold-bright);
+      margin: 0 0 6px;
+    }
+
+    .modal-desc {
+      font-size: 13px;
+      color: var(--text-muted);
+      line-height: 1.5;
+      margin: 0 0 16px;
+    }
+
+    .stage-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 8px;
+      margin-bottom: 14px;
+    }
+
+    .stage-chip {
+      background: rgba(255, 255, 255, 0.06);
+      border: 1px solid rgba(255, 255, 255, 0.14);
+      border-radius: 12px;
+      padding: 8px 4px;
+      color: var(--text-main);
+      cursor: pointer;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 2px;
+    }
+
+    .stage-chip strong {
+      font-size: 14px;
+      color: var(--gold-bright);
+    }
+
+    .stage-chip span {
+      font-size: 10px;
+      color: var(--text-muted);
+    }
+
+    .custom-row {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 14px;
+    }
+
+    .custom-row input {
+      flex: 1;
+      background: rgba(255, 255, 255, 0.08);
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      border-radius: 12px;
+      padding: 9px 12px;
+      color: #fff;
+      font-size: 14px;
+      text-align: center;
+      outline: none;
+    }
+
+    .btn-row {
+      display: flex;
+      gap: 10px;
+    }
+
+    .btn-primary, .btn-secondary {
+      flex: 1;
+      border: none;
+      border-radius: 14px;
+      padding: 12px 14px;
+      font-size: 14px;
+      font-weight: 800;
+      cursor: pointer;
+    }
+
+    .btn-primary {
+      background: linear-gradient(135deg, #f6cc61, #d89b24);
+      color: #191206;
+    }
+
+    .btn-secondary {
+      background: rgba(255, 255, 255, 0.1);
+      color: var(--text-main);
+      border: 1px solid rgba(255, 255, 255, 0.16);
+    }
+  </style>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+</head>
+<body>
+  <div id="canvas-container"></div>
+
+  <!-- 頂部狀態列 -->
+  <div id="top-bar">
+    <div class="hud-pill">
+      <button id="glyph-trigger" type="button">𓃥</button>
+      <span class="stage-label" id="hud-stage">第 1 大關</span>
+      <span class="sub-label" id="hud-sub">1/5</span>
+      <span class="meta-tag" id="hud-dia">Ø 1.24</span>
+    </div>
+    <div style="display:flex; gap:6px;">
+      <button class="icon-btn" id="btn-reroll" type="button">重排</button>
+      <button class="icon-btn" id="btn-reset-ball" type="button">歸位</button>
+    </div>
+  </div>
+
+  <!-- 進球順序浮動指示 -->
+  <div id="seq-strip"></div>
+
+  <!-- 右下角控制區 -->
+  <div id="pad-wrap">
+    <div class="mini-controls">
+      <button class="mini-pill on" id="btn-hold" type="button">保持傾角</button>
+      <button class="mini-pill" id="btn-cam" type="button">俯視</button>
+    </div>
+    <div id="joystick">
+      <div id="joy-knob"></div>
+    </div>
+  </div>
+
+  <!-- 隱藏式大關選擇視窗 -->
+  <div class="modal-backdrop" id="portal-modal">
+    <div class="modal-card">
+      <h2 class="modal-title">𓃥 關卡選擇</h2>
+      <div class="stage-grid" id="stage-preset-grid"></div>
+      <div class="custom-row">
+        <input type="number" id="custom-stage-input" min="1" max="99" value="1" placeholder="1~99" />
+        <button class="btn-secondary" id="btn-custom-go" type="button" style="flex:0 0 96px;">進入</button>
+      </div>
+      <div class="btn-row">
+        <button class="btn-secondary" id="btn-close-portal" type="button">關閉</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 過關 / 失敗 / 掉出木板詢問視窗 -->
+  <div class="modal-backdrop" id="result-modal">
+    <div class="modal-card">
+      <h2 class="modal-title" id="res-title">小關過關！</h2>
+      <p class="modal-desc" id="res-desc">準備進入下一小關</p>
+      <div class="btn-row">
+        <button class="btn-secondary" id="res-btn-secondary" type="button">重玩本關</button>
+        <button class="btn-primary" id="res-btn-primary" type="button">繼續下一關</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    (function () {
+      const BOARD_WIDTH = 5.4;
+      const BOARD_LENGTH = 10.6;
+      const BOARD_THICKNESS = 0.28;
+      const RAIL_HEIGHT = 0.36;
+      const RAIL_THICKNESS = 0.24;
+      const PIVOT_Y = 3.55;
+      const BALL_RADIUS = 0.28;
+      const BALL_DIAMETER = BALL_RADIUS * 2;
+      const DWELL_REQUIRED = 0.25;
+      const TRAP_ARM_DURATION = 3.0; // 第10關起：球到達定位圈後 3 秒或離開即變陷阱洞
+
+      const PRESET_STAGES = [
+        { s: 1, tag: "1圈·入門" },
+        { s: 5, tag: "5圈·進階" },
+        { s: 10, tag: "陷阱洞啟動" },
+        { s: 20, tag: "無近端護邊" },
+        { s: 30, tag: "無前後護邊" },
+        { s: 40, tag: "僅剩右側邊" },
+        { s: 50, tag: "四邊全無" },
+        { s: 60, tag: "極限加速起" }
+      ];
+
+      const state = {
+        stage: 1,
+        subLevel: 1,
+        ringRadius: 0.62,
+        rings: [],
+        traps: [],
+        currentTargetIdx: 0,
+        dwellTimer: 0,
+        pitch: 0,
+        roll: 0,
+        targetPitch: 0,
+        targetRoll: 0,
+        holdAngle: true,
+        sideCamera: false,
+        ballPos: new THREE.Vector3(0, BALL_RADIUS, BOARD_LENGTH * 0.5 - 1.15),
+        ballVel: new THREE.Vector3(0, 0, 0),
+        fallMode: null,
+        fallTarget: new THREE.Vector3(),
+        fallProgress: 0,
+        paused: false,
+        advanceLock: false
+      };
+
+      // ==========================================
+      // 音效
+      // ==========================================
+      let audioCtx = null;
+      function ensureAudio() {
+        if (!audioCtx) {
+          const AC = window.AudioContext || window.webkitAudioContext;
+          if (AC) audioCtx = new AC();
+        }
+        if (audioCtx && audioCtx.state === "suspended") {
+          audioCtx.resume().catch(() => {});
+        }
+      }
+
+      function playTone(freq, type, duration, vol = 0.12, slideTo = null) {
+        if (!audioCtx) return;
+        const now = audioCtx.currentTime;
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.type = type;
+        osc.frequency.setValueAtTime(freq, now);
+        if (slideTo) osc.frequency.exponentialRampToValueAtTime(slideTo, now + duration);
+        gain.gain.setValueAtTime(vol, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + duration);
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+        osc.start(now);
+        osc.stop(now + duration);
+      }
+
+      // ==========================================
+      // Three.js PBR 場景
+      // ==========================================
+      const container = document.getElementById("canvas-container");
+      const scene = new THREE.Scene();
+      scene.background = new THREE.Color(0x211d1a);
+      scene.fog = new THREE.FogExp2(0x211d1a, 0.022);
+
+      const camera = new THREE.PerspectiveCamera(44, window.innerWidth / window.innerHeight, 0.1, 80);
+      const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: "high-performance" });
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+      renderer.shadowMap.enabled = true;
+      renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+      renderer.toneMapping = THREE.ACESFilmicToneMapping;
+      renderer.toneMappingExposure = 1.15;
+      container.appendChild(renderer.domElement);
+
+      const hemiLight = new THREE.HemisphereLight(0xfff4e0, 0x3b2f26, 0.95);
+      scene.add(hemiLight);
+
+      const keyLight = new THREE.DirectionalLight(0xfff1d6, 1.35);
+      keyLight.position.set(6, 14, 8);
+      keyLight.castShadow = true;
+      keyLight.shadow.mapSize.set(1024, 1024);
+      keyLight.shadow.camera.near = 2;
+      keyLight.shadow.camera.far = 32;
+      const d = 9;
+      keyLight.shadow.camera.left = -d;
+      keyLight.shadow.camera.right = d;
+      keyLight.shadow.camera.top = d;
+      keyLight.shadow.camera.bottom = -d;
+      keyLight.shadow.bias = -0.0008;
+      scene.add(keyLight);
+
+      const rimLight = new THREE.DirectionalLight(0x9ec5ff, 0.45);
+      rimLight.position.set(-7, 8, -9);
+      scene.add(rimLight);
+
+      function createWoodTextures(baseHex, grainHex, repeatX, repeatY) {
+        const c = document.createElement("canvas");
+        c.width = 512;
+        c.height = 512;
+        const ctx = c.getContext("2d");
+        ctx.fillStyle = baseHex;
+        ctx.fillRect(0, 0, 512, 512);
+
+        for (let i = 0; i < 420; i++) {
+          const x = Math.random() * 512;
+          const w = 1 + Math.random() * 4;
+          ctx.fillStyle = grainHex;
+          ctx.globalAlpha = 0.04 + Math.random() * 0.08;
+          ctx.fillRect(x, 0, w, 512);
+        }
+        ctx.globalAlpha = 1;
+
+        const map = new THREE.CanvasTexture(c);
+        map.wrapS = map.wrapT = THREE.RepeatWrapping;
+        map.repeat.set(repeatX, repeatY);
+        return map;
+      }
+
+      const oakMap = createWoodTextures("#d6b282", "#8a5a2b", 2, 4);
+      const walnutMap = createWoodTextures("#5c3821", "#2b160a", 1, 3);
+      const burlMap = createWoodTextures("#9c4f24", "#3d1807", 2, 2);
+
+      const tableMesh = new THREE.Mesh(
+        new THREE.PlaneGeometry(46, 46),
+        new THREE.MeshStandardMaterial({ color: 0x2a2522, roughness: 0.85, metalness: 0.05 })
+      );
+      tableMesh.rotation.x = -Math.PI / 2;
+      tableMesh.position.y = 0;
+      tableMesh.receiveShadow = true;
+      scene.add(tableMesh);
+
+      const gridHelper = new THREE.GridHelper(32, 32, 0x453d37, 0x332d29);
+      gridHelper.position.y = 0.004;
+      scene.add(gridHelper);
+
+      const pivotZ = -BOARD_LENGTH * 0.5;
+      const brassMat = new THREE.MeshStandardMaterial({ color: 0xd9a441, roughness: 0.28, metalness: 0.82 });
+      const steelMat = new THREE.MeshStandardMaterial({ color: 0x6b7280, roughness: 0.35, metalness: 0.85 });
+
+      const standPillar = new THREE.Mesh(new THREE.CylinderGeometry(0.24, 0.34, PIVOT_Y, 24), steelMat);
+      standPillar.position.set(0, PIVOT_Y * 0.5, pivotZ - 0.16);
+      standPillar.castShadow = true;
+      scene.add(standPillar);
+
+      const standBase = new THREE.Mesh(new THREE.CylinderGeometry(0.75, 0.85, 0.18, 28), brassMat);
+      standBase.position.set(0, 0.09, pivotZ - 0.16);
+      standBase.receiveShadow = true;
+      scene.add(standBase);
+
+      const hingeJoint = new THREE.Mesh(new THREE.SphereGeometry(0.26, 20, 20), brassMat);
+      hingeJoint.position.set(0, PIVOT_Y, pivotZ);
+      scene.add(hingeJoint);
+
+      const pivotGroup = new THREE.Group();
+      pivotGroup.position.set(0, PIVOT_Y, pivotZ);
+      scene.add(pivotGroup);
+
+      const plankMat = new THREE.MeshStandardMaterial({
+        map: oakMap,
+        roughness: 0.48,
+        metalness: 0.04
+      });
+      const plankMesh = new THREE.Mesh(
+        new THREE.BoxGeometry(BOARD_WIDTH, BOARD_THICKNESS, BOARD_LENGTH),
+        plankMat
+      );
+      plankMesh.position.set(0, -BOARD_THICKNESS * 0.5, BOARD_LENGTH * 0.5);
+      plankMesh.castShadow = true;
+      plankMesh.receiveShadow = true;
+      pivotGroup.add(plankMesh);
+
+      const railMat = new THREE.MeshStandardMaterial({
+        map: walnutMap,
+        roughness: 0.42,
+        metalness: 0.06
+      });
+      const transverseSpanX = BOARD_WIDTH - RAIL_THICKNESS * 2 - 0.012;
+      const railY = RAIL_HEIGHT * 0.5 - 0.002;
+
+      const railNear = new THREE.Mesh(
+        new THREE.BoxGeometry(transverseSpanX, RAIL_HEIGHT, RAIL_THICKNESS),
+        railMat
+      );
+      railNear.position.set(0, railY, BOARD_LENGTH - RAIL_THICKNESS * 0.5);
+      railNear.castShadow = true;
+      railNear.receiveShadow = true;
+
+      const railFar = new THREE.Mesh(
+        new THREE.BoxGeometry(transverseSpanX, RAIL_HEIGHT, RAIL_THICKNESS),
+        railMat
+      );
+      railFar.position.set(0, railY, RAIL_THICKNESS * 0.5);
+      railFar.castShadow = true;
+      railFar.receiveShadow = true;
+
+      const railLeft = new THREE.Mesh(
+        new THREE.BoxGeometry(RAIL_THICKNESS, RAIL_HEIGHT, BOARD_LENGTH),
+        railMat
+      );
+      railLeft.position.set(-BOARD_WIDTH * 0.5 + RAIL_THICKNESS * 0.5, railY, BOARD_LENGTH * 0.5);
+      railLeft.castShadow = true;
+      railLeft.receiveShadow = true;
+
+      const railRight = new THREE.Mesh(
+        new THREE.BoxGeometry(RAIL_THICKNESS, RAIL_HEIGHT, BOARD_LENGTH),
+        railMat
+      );
+      railRight.position.set(BOARD_WIDTH * 0.5 - RAIL_THICKNESS * 0.5, railY, BOARD_LENGTH * 0.5);
+      railRight.castShadow = true;
+      railRight.receiveShadow = true;
+
+      pivotGroup.add(railNear, railFar, railLeft, railRight);
+
+      const handleBar = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.08, 0.08, 2.2, 16),
+        brassMat
+      );
+      handleBar.rotation.z = Math.PI / 2;
+      handleBar.position.set(0, -0.14, BOARD_LENGTH + 0.24);
+      pivotGroup.add(handleBar);
+
+      const markersGroup = new THREE.Group();
+      pivotGroup.add(markersGroup);
+
+      const ballMat = new THREE.MeshPhysicalMaterial({
+        map: burlMap,
+        roughness: 0.18,
+        metalness: 0.05,
+        clearcoat: 0.85,
+        clearcoatRoughness: 0.12
+      });
+      const ballMesh = new THREE.Mesh(new THREE.SphereGeometry(BALL_RADIUS, 32, 32), ballMat);
+      ballMesh.castShadow = true;
+      ballMesh.receiveShadow = true;
+      pivotGroup.add(ballMesh);
+
+      // ==========================================
+      // 關卡規則與佈局
+      // ==========================================
+      function getRailConfig(stage) {
+        return {
+          near: stage < 20, // 第20關起移除靠近玩家護邊
+          far: stage < 30,  // 第30關起再移除對面護邊
+          left: stage < 40, // 第40關起再移除左側護邊
+          right: stage < 50 // 第50關起再移除右側護邊
+        };
+      }
+
+      // 第1~10大關圈數為 1~10 個；第11大關起圈數一律固定為 10 個
+      function getRingCount(stage) {
+        return Math.min(10, stage);
+      }
+
+      function computeRingRadius(stage, subLevel) {
+        if (stage < 10) {
+          const shrinkRadii = [0.62, 0.54, 0.47, 0.41, 0.36];
+          let r = shrinkRadii[subLevel - 1];
+          if (stage >= 6) {
+            const scale = 1 - (stage - 5) * 0.02;
+            r = Math.max(0.32, +(r * scale).toFixed(2));
+          }
+          return r;
+        }
+
+        // 每 10 整數關（10, 20, 30, 40...）從最小直徑（半徑 0.32，直徑 0.64）開始
+        const decadeOffset = stage % 10;
+        const minR = 0.32;
+        const maxR = 0.52;
+        const subStep = (subLevel - 1) * 0.032;
+        const stageStep = Math.min(decadeOffset, 5) * 0.014;
+        const r = Math.min(maxR, minR + subStep + stageStep);
+        return +r.toFixed(2);
+      }
+
+      // 高對比度定位圈數字貼圖（深色底襯 + 粗描邊 + 大字級）
+      function createNumberTexture(num, status) {
+        const c = document.createElement("canvas");
+        c.width = 256;
+        c.height = 256;
+        const ctx = c.getContext("2d");
+        ctx.clearRect(0, 0, 256, 256);
+
+        // 深色半透明底圓，確保淺色木紋上數字高對比清晰可見
+        ctx.beginPath();
+        ctx.arc(128, 128, 112, 0, Math.PI * 2);
+        if (status === "active") {
+          ctx.fillStyle = "rgba(38, 25, 4, 0.78)";
+          ctx.strokeStyle = "#ffe066";
+        } else if (status === "done") {
+          ctx.fillStyle = "rgba(8, 36, 18, 0.72)";
+          ctx.strokeStyle = "#4ade80";
+        } else if (status === "armed") {
+          ctx.fillStyle = "rgba(46, 10, 52, 0.80)";
+          ctx.strokeStyle = "#f472b6";
+        } else {
+          ctx.fillStyle = "rgba(22, 18, 15, 0.62)";
+          ctx.strokeStyle = "rgba(255, 255, 255, 0.82)";
+        }
+        ctx.lineWidth = 16;
+        ctx.fill();
+        ctx.stroke();
+
+        // 內圈微光環強化焦點
+        if (status === "active") {
+          ctx.beginPath();
+          ctx.arc(128, 128, 94, 0, Math.PI * 2);
+          ctx.strokeStyle = "rgba(255, 232, 130, 0.55)";
+          ctx.lineWidth = 5;
+          ctx.stroke();
+        }
+
+        const label = String(num);
+        ctx.font = label.length >= 2 ? "900 124px sans-serif" : "900 138px sans-serif";
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+
+        // 粗黑外描邊與投影
+        ctx.lineJoin = "round";
+        ctx.lineWidth = 16;
+        ctx.strokeStyle = "rgba(10, 8, 6, 0.92)";
+        ctx.strokeText(label, 128, 134);
+
+        if (status === "active") {
+          ctx.fillStyle = "#ffe66d";
+        } else if (status === "done") {
+          ctx.fillStyle = "#86efac";
+        } else if (status === "armed") {
+          ctx.fillStyle = "#f9a8d4";
+        } else {
+          ctx.fillStyle = "#ffffff";
+        }
+        ctx.fillText(label, 128, 134);
+
+        return new THREE.CanvasTexture(c);
+      }
+
+      function createTrapMesh(radius) {
+        const g = new THREE.Group();
+        const hole = new THREE.Mesh(
+          new THREE.CircleGeometry(radius, 36),
+          new THREE.MeshBasicMaterial({ color: 0x050404 })
+        );
+        hole.rotation.x = -Math.PI / 2;
+        hole.position.y = 0.005;
+
+        const rim = new THREE.Mesh(
+          new THREE.RingGeometry(radius * 0.92, radius * 1.12, 36),
+          new THREE.MeshBasicMaterial({ color: 0xc026d3, side: THREE.DoubleSide })
+        );
+        rim.rotation.x = -Math.PI / 2;
+        rim.position.y = 0.007;
+
+        g.add(hole, rim);
+        return g;
+      }
+
+      function convertRingToTrap(ring) {
+        if (ring.state === "trapped") return;
+        ring.state = "trapped";
+        markersGroup.remove(ring.discMesh);
+        markersGroup.remove(ring.progMesh);
+        const trapMesh = createTrapMesh(ring.radius);
+        trapMesh.position.set(ring.x, 0, ring.z);
+        markersGroup.add(trapMesh);
+        playTone(260, "triangle", 0.18, 0.1, 140);
+        updateHUD();
+      }
+
+      function generateNonOverlappingLayout(ringCount, hasTrap, radius) {
+        const minCenterDist = radius * 2 + BALL_DIAMETER + 0.12;
+        const margin = RAIL_THICKNESS + radius + BALL_DIAMETER * 0.75;
+        const minX = -BOARD_WIDTH * 0.5 + margin;
+        const maxX = BOARD_WIDTH * 0.5 - margin;
+        const minZ = margin;
+        const maxZ = BOARD_LENGTH - Math.max(margin, 1.85);
+
+        const totalNeeded = ringCount + (hasTrap ? 1 : 0);
+
+        for (let attempt = 0; attempt < 320; attempt++) {
+          const pts = [];
+          let valid = true;
+          for (let i = 0; i < totalNeeded; i++) {
+            let placed = false;
+            for (let t = 0; t < 200; t++) {
+              const x = minX + Math.random() * Math.max(0.2, maxX - minX);
+              const z = minZ + Math.random() * Math.max(0.2, maxZ - minZ);
+              let ok = true;
+              for (let j = 0; j < pts.length; j++) {
+                const dx = x - pts[j].x;
+                const dz = z - pts[j].z;
+                if (Math.hypot(dx, dz) < minCenterDist) {
+                  ok = false;
+                  break;
+                }
+              }
+              if (ok) {
+                pts.push({ x, z });
+                placed = true;
+                break;
+              }
+            }
+            if (!placed) {
+              valid = false;
+              break;
+            }
+          }
+          if (valid) return pts;
+        }
+
+        const cols = 3;
+        const rows = Math.ceil(totalNeeded / cols);
+        const pts = [];
+        for (let i = 0; i < totalNeeded; i++) {
+          const r = Math.floor(i / cols);
+          const c = i % cols;
+          const fx = (c + 0.5) / cols;
+          const fz = (r + 0.5) / rows;
+          pts.push({
+            x: minX + fx * (maxX - minX),
+            z: minZ + fz * (maxZ - minZ)
+          });
+        }
+        return pts;
+      }
+
+      function loadLevel(stage, subLevel) {
+        state.stage = Math.max(1, Math.min(99, Math.floor(stage)));
+        state.subLevel = Math.max(1, Math.min(5, Math.floor(subLevel)));
+        state.advanceLock = false;
+        state.paused = false;
+        state.fallMode = null;
+        state.fallProgress = 0;
+        state.currentTargetIdx = 0;
+        state.dwellTimer = 0;
+
+        const rails = getRailConfig(state.stage);
+        railNear.visible = rails.near;
+        railFar.visible = rails.far;
+        railLeft.visible = rails.left;
+        railRight.visible = rails.right;
+
+        state.pitch = 0;
+        state.roll = 0;
+        state.targetPitch = 0;
+        state.targetRoll = 0;
+        state.ballPos.set(0, BALL_RADIUS, BOARD_LENGTH - 1.15);
+        state.ballVel.set(0, 0, 0);
+
+        while (markersGroup.children.length > 0) {
+          markersGroup.remove(markersGroup.children[0]);
+        }
+        state.rings = [];
+        state.traps = [];
+
+        const ringCount = getRingCount(state.stage);
+        const radius = computeRingRadius(state.stage, state.subLevel);
+        state.ringRadius = radius;
+        const hasTrap = state.stage >= 10;
+        const coords = generateNonOverlappingLayout(ringCount, hasTrap, radius);
+
+        for (let i = 0; i < ringCount; i++) {
+          const p = coords[i];
+          const status = i === 0 ? "active" : "pending";
+          const tex = createNumberTexture(i + 1, status);
+          const disc = new THREE.Mesh(
+            new THREE.CircleGeometry(radius, 36),
+            new THREE.MeshBasicMaterial({ map: tex, transparent: true })
+          );
+          disc.rotation.x = -Math.PI / 2;
+          disc.position.set(p.x, 0.006, p.z);
+
+          const progMesh = new THREE.Mesh(
+            new THREE.RingGeometry(0.02, radius * 0.92, 36),
+            new THREE.MeshBasicMaterial({ color: 0xffd978, transparent: true, opacity: 0.35, side: THREE.DoubleSide })
+          );
+          progMesh.rotation.x = -Math.PI / 2;
+          progMesh.position.set(p.x, 0.008, p.z);
+          progMesh.scale.set(0.001, 0.001, 1);
+
+          markersGroup.add(disc, progMesh);
+          state.rings.push({
+            index: i,
+            x: p.x,
+            z: p.z,
+            radius,
+            state: status,
+            armTimer: 0,
+            discMesh: disc,
+            progMesh
+          });
+        }
+
+        if (hasTrap) {
+          const tp = coords[ringCount];
+          const trapMesh = createTrapMesh(radius);
+          trapMesh.position.set(tp.x, 0, tp.z);
+          markersGroup.add(trapMesh);
+          state.traps.push({ x: tp.x, z: tp.z, radius, mesh: trapMesh });
+        }
+
+        updateHUD();
+      }
+
+      function updateHUD() {
+        document.getElementById("hud-stage").textContent = `第 ${state.stage} 大關`;
+        document.getElementById("hud-sub").textContent = `${state.subLevel}/5`;
+        document.getElementById("hud-dia").textContent = `Ø ${(state.ringRadius * 2).toFixed(2)}`;
+
+        const strip = document.getElementById("seq-strip");
+        strip.innerHTML = "";
+        state.rings.forEach((r, idx) => {
+          const dot = document.createElement("span");
+          dot.className = "seq-dot";
+          if (r.state === "active") dot.classList.add("active");
+          else if (r.state === "done") dot.classList.add("done");
+          else if (r.state === "armed") dot.classList.add("armed");
+          else if (r.state === "trapped") dot.classList.add("trapped");
+          dot.textContent = idx + 1;
+          strip.appendChild(dot);
+        });
+      }
+
+      // ==========================================
+      // 觸控與搖桿操控
+      // ==========================================
+      const MAX_PITCH_UP = THREE.MathUtils.degToRad(30);
+      const MAX_PITCH_DOWN = THREE.MathUtils.degToRad(18);
+      const MAX_ROLL = THREE.MathUtils.degToRad(24);
+
+      const joystick = document.getElementById("joystick");
+      const joyKnob = document.getElementById("joy-knob");
+      let joyActive = false;
+      let screenDragActive = false;
+      let dragStart = { x: 0, y: 0, pitch: 0, roll: 0 };
+
+      function applyInputAxes(nx, ny) {
+        nx = Math.max(-1, Math.min(1, nx));
+        ny = Math.max(-1, Math.min(1, ny));
+        state.targetRoll = nx * MAX_ROLL;
+        state.targetPitch = ny < 0 ? -ny * MAX_PITCH_UP : -ny * MAX_PITCH_DOWN;
+        joyKnob.style.transform = `translate(calc(-50% + ${nx * 28}px), calc(-50% + ${ny * 28}px))`;
+      }
+
+      function handleJoystickMove(clientX, clientY) {
+        const rect = joystick.getBoundingClientRect();
+        const cx = rect.left + rect.width / 2;
+        const cy = rect.top + rect.height / 2;
+        const maxR = rect.width * 0.38;
+        applyInputAxes((clientX - cx) / maxR, (clientY - cy) / maxR);
+      }
+
+      joystick.addEventListener("pointerdown", (e) => {
+        e.stopPropagation();
+        ensureAudio();
+        joyActive = true;
+        joystick.setPointerCapture(e.pointerId);
+        handleJoystickMove(e.clientX, e.clientY);
+      });
+
+      joystick.addEventListener("pointermove", (e) => {
+        if (!joyActive) return;
+        e.stopPropagation();
+        handleJoystickMove(e.clientX, e.clientY);
+      });
+
+      function endJoystick() {
+        joyActive = false;
+        if (!state.holdAngle) {
+          applyInputAxes(0, 0);
+        }
+      }
+      joystick.addEventListener("pointerup", endJoystick);
+      joystick.addEventListener("pointercancel", endJoystick);
+
+      renderer.domElement.addEventListener("pointerdown", (e) => {
+        if (state.paused) return;
+        ensureAudio();
+        screenDragActive = true;
+        dragStart = {
+          x: e.clientX,
+          y: e.clientY,
+          pitch: state.targetPitch,
+          roll: state.targetRoll
+        };
+      });
+
+      window.addEventListener("pointermove", (e) => {
+        if (!screenDragActive || state.paused) return;
+        const dx = (e.clientX - dragStart.x) / 130;
+        const dy = (e.clientY - dragStart.y) / 140;
+        const nextRoll = Math.max(-MAX_ROLL, Math.min(MAX_ROLL, dragStart.roll + dx * MAX_ROLL));
+        const nextPitch = Math.max(-MAX_PITCH_DOWN, Math.min(MAX_PITCH_UP, dragStart.pitch - dy * MAX_PITCH_UP));
+        state.targetRoll = nextRoll;
+        state.targetPitch = nextPitch;
+
+        const nx = nextRoll / MAX_ROLL;
+        const ny = nextPitch >= 0 ? -(nextPitch / MAX_PITCH_UP) : (-nextPitch / MAX_PITCH_DOWN);
+        joyKnob.style.transform = `translate(calc(-50% + ${nx * 28}px), calc(-50% + ${ny * 28}px))`;
+      });
+
+      window.addEventListener("pointerup", () => {
+        if (!screenDragActive) return;
+        screenDragActive = false;
+        if (!state.holdAngle) {
+          applyInputAxes(0, 0);
+        }
+      });
+
+      // ==========================================
+      // 彈窗提示
+      // ==========================================
+      const resultModal = document.getElementById("result-modal");
+      const resTitle = document.getElementById("res-title");
+      const resDesc = document.getElementById("res-desc");
+      const resPrimary = document.getElementById("res-btn-primary");
+      const resSecondary = document.getElementById("res-btn-secondary");
+
+      function showPromptModal({ title, desc, primaryText, secondaryText, onPrimary, onSecondary }) {
+        state.paused = true;
+        resTitle.textContent = title;
+        resDesc.textContent = desc;
+        resPrimary.textContent = primaryText;
+        resSecondary.textContent = secondaryText;
+        resultModal.style.display = "flex";
+
+        resPrimary.onclick = (e) => {
+          e.stopPropagation();
+          if (state.advanceLock) return;
+          state.advanceLock = true;
+          resultModal.style.display = "none";
+          onPrimary();
+        };
+        resSecondary.onclick = (e) => {
+          e.stopPropagation();
+          if (state.advanceLock) return;
+          state.advanceLock = true;
+          resultModal.style.display = "none";
+          onSecondary();
+        };
+      }
+
+      function handleSubLevelClear() {
+        playTone(523.25, "triangle", 0.14, 0.14);
+        setTimeout(() => playTone(659.25, "triangle", 0.14, 0.14), 90);
+        setTimeout(() => playTone(783.99, "triangle", 0.25, 0.16), 180);
+
+        const isLastSub = state.subLevel >= 5;
+        const nextStage = isLastSub ? state.stage + 1 : state.stage;
+        const nextSub = isLastSub ? 1 : state.subLevel + 1;
+
+        showPromptModal({
+          title: isLastSub ? `第 ${state.stage} 大關全破！` : `第 ${state.subLevel}/5 小關過關！`,
+          desc: isLastSub
+            ? `即將進入第 ${nextStage} 大關（第 1/5 小關）`
+            : `即將進入第 ${state.stage} 大關第 ${nextSub}/5 小關`,
+          primaryText: isLastSub ? `挑戰第 ${nextStage} 大關` : `進入 ${nextSub}/5 小關`,
+          secondaryText: "重玩本小關",
+          onPrimary: () => loadLevel(nextStage, nextSub),
+          onSecondary: () => loadLevel(state.stage, state.subLevel)
+        });
+      }
+
+      function handleFail(reasonTitle, reasonDesc) {
+        playTone(190, "sawtooth", 0.35, 0.15, 95);
+        showPromptModal({
+          title: reasonTitle,
+          desc: reasonDesc,
+          primaryText: "繼續該關遊戲",
+          secondaryText: "回第 1 大關",
+          onPrimary: () => loadLevel(state.stage, state.subLevel),
+          onSecondary: () => loadLevel(1, 1)
+        });
+      }
+
+      // ==========================================
+      // 物理更新（提高斜面反應速度，並從第60關起逐步加速）
+      // ==========================================
+      function getSlopeResponseProfile(stage) {
+        // 第60關起每關遞增速度倍率（60關 1.05x -> 99關 1.75x）
+        const lateBoost = stage >= 60 ? 1 + (stage - 59) * 0.01875 : 1.0;
+        return {
+          gravGain: 36.0 * lateBoost,
+          tiltResponsiveness: Math.min(34, 18.5 * lateBoost),
+          damping: Math.pow(0.895, 1)
+        };
+      }
+
+      function stepPhysics(dt) {
+        if (state.paused) return;
+
+        const phys = getSlopeResponseProfile(state.stage);
+
+        state.pitch += (state.targetPitch - state.pitch) * Math.min(1, dt * phys.tiltResponsiveness);
+        state.roll += (state.targetRoll - state.roll) * Math.min(1, dt * phys.tiltResponsiveness);
+
+        const maxSafeDown = Math.asin(
+          Math.max(0.05, (PIVOT_Y - 0.22 - Math.abs(Math.sin(state.roll)) * (BOARD_WIDTH * 0.5)) / BOARD_LENGTH)
+        );
+        if (state.pitch < -maxSafeDown) {
+          state.pitch = -maxSafeDown;
+        }
+
+        pivotGroup.rotation.order = "YXZ";
+        pivotGroup.rotation.x = -state.pitch;
+        pivotGroup.rotation.z = -state.roll;
+
+        if (state.fallMode === "hole") {
+          state.fallProgress += dt * 2.5;
+          state.ballPos.x += (state.fallTarget.x - state.ballPos.x) * Math.min(1, dt * 10);
+          state.ballPos.z += (state.fallTarget.z - state.ballPos.z) * Math.min(1, dt * 10);
+          state.ballPos.y = BALL_RADIUS - state.fallProgress * 1.1;
+          ballMesh.position.copy(state.ballPos);
+          if (state.fallProgress >= 0.85) {
+            state.fallMode = null;
+            handleFail("木球掉入陷阱洞！", "重心落入陷阱洞範圍，是否繼續挑戰該關？");
+          }
+          return;
+        }
+
+        if (state.fallMode === "edge") {
+          state.fallProgress += dt;
+          state.ballVel.y -= 22 * dt;
+          state.ballPos.addScaledVector(state.ballVel, dt);
+          ballMesh.position.copy(state.ballPos);
+          if (state.fallProgress >= 0.55) {
+            state.fallMode = null;
+            handleFail("木球已離開木板！", "木球滾出無護邊邊緣，是否繼續該關遊戲？");
+          }
+          return;
+        }
+
+        const ax = Math.sin(state.roll) * phys.gravGain;
+        const az = -Math.sin(state.pitch) * phys.gravGain;
+
+        const dampFactor = Math.pow(phys.damping, dt * 60);
+        state.ballVel.x = (state.ballVel.x + ax * dt) * dampFactor;
+        state.ballVel.z = (state.ballVel.z + az * dt) * dampFactor;
+
+        state.ballPos.x += state.ballVel.x * dt;
+        state.ballPos.z += state.ballVel.z * dt;
+        state.ballPos.y = BALL_RADIUS;
+
+        const rails = getRailConfig(state.stage);
+        const halfW = BOARD_WIDTH * 0.5;
+        const innerLeft = -halfW + (rails.left ? RAIL_THICKNESS : 0) + BALL_RADIUS;
+        const innerRight = halfW - (rails.right ? RAIL_THICKNESS : 0) - BALL_RADIUS;
+        const innerFar = (rails.far ? RAIL_THICKNESS : 0) + BALL_RADIUS;
+        const innerNear = BOARD_LENGTH - (rails.near ? RAIL_THICKNESS : 0) - BALL_RADIUS;
+
+        if (rails.left) {
+          if (state.ballPos.x < innerLeft) {
+            state.ballPos.x = innerLeft;
+            state.ballVel.x = Math.abs(state.ballVel.x) * 0.35;
+          }
+        } else if (state.ballPos.x < -halfW - BALL_RADIUS * 0.25) {
+          state.fallMode = "edge";
+          state.ballVel.x = Math.min(state.ballVel.x, -2.5);
+          return;
+        }
+
+        if (rails.right) {
+          if (state.ballPos.x > innerRight) {
+            state.ballPos.x = innerRight;
+            state.ballVel.x = -Math.abs(state.ballVel.x) * 0.35;
+          }
+        } else if (state.ballPos.x > halfW + BALL_RADIUS * 0.25) {
+          state.fallMode = "edge";
+          state.ballVel.x = Math.max(state.ballVel.x, 2.5);
+          return;
+        }
+
+        if (rails.far) {
+          if (state.ballPos.z < innerFar) {
+            state.ballPos.z = innerFar;
+            state.ballVel.z = Math.abs(state.ballVel.z) * 0.35;
+          }
+        } else if (state.ballPos.z < -BALL_RADIUS * 0.25) {
+          state.fallMode = "edge";
+          state.ballVel.z = Math.min(state.ballVel.z, -2.5);
+          return;
+        }
+
+        if (rails.near) {
+          if (state.ballPos.z > innerNear) {
+            state.ballPos.z = innerNear;
+            state.ballVel.z = -Math.abs(state.ballVel.z) * 0.35;
+          }
+        } else if (state.ballPos.z > BOARD_LENGTH + BALL_RADIUS * 0.25) {
+          state.fallMode = "edge";
+          state.ballVel.z = Math.max(state.ballVel.z, 2.5);
+          return;
+        }
+
+        ballMesh.position.copy(state.ballPos);
+        const speed = Math.hypot(state.ballVel.x, state.ballVel.z);
+        if (speed > 0.002) {
+          const axis = new THREE.Vector3(state.ballVel.z, 0, -state.ballVel.x).normalize();
+          const angle = (speed * dt) / BALL_RADIUS;
+          ballMesh.rotateOnWorldAxis(axis, angle);
+        }
+
+        // 僅第 10 大關起：已到達的定位圈（armed 狀態）在 3 秒後或球離開定位圈範圍即變為陷阱洞
+        if (state.stage >= 10) {
+          for (let i = 0; i < state.rings.length; i++) {
+            const r = state.rings[i];
+            if (r.state === "armed") {
+              r.armTimer += dt;
+              const dist = Math.hypot(state.ballPos.x - r.x, state.ballPos.z - r.z);
+              const remainRatio = Math.max(0.001, 1 - r.armTimer / TRAP_ARM_DURATION);
+              r.progMesh.scale.set(remainRatio, remainRatio, 1);
+
+              if (dist > r.radius || r.armTimer >= TRAP_ARM_DURATION) {
+                convertRingToTrap(r);
+              }
+            }
+          }
+        }
+
+        // 固定陷阱洞重心掉落判定（第 10 關起存在）
+        for (let i = 0; i < state.traps.length; i++) {
+          const t = state.traps[i];
+          const dist = Math.hypot(state.ballPos.x - t.x, state.ballPos.z - t.z);
+          if (dist <= t.radius * 0.92) {
+            state.fallMode = "hole";
+            state.fallTarget.set(t.x, 0, t.z);
+            state.fallProgress = 0;
+            playTone(300, "sine", 0.38, 0.14, 70);
+            return;
+          }
+        }
+
+        // 轉化後陷阱洞重心掉落判定（第 10 關起存在）
+        for (let i = 0; i < state.rings.length; i++) {
+          const r = state.rings[i];
+          if (r.state === "trapped") {
+            const dist = Math.hypot(state.ballPos.x - r.x, state.ballPos.z - r.z);
+            if (dist <= r.radius * 0.92) {
+              state.fallMode = "hole";
+              state.fallTarget.set(r.x, 0, r.z);
+              state.fallProgress = 0;
+              playTone(300, "sine", 0.38, 0.14, 70);
+              return;
+            }
+          }
+        }
+
+        // 目標定位圈到達判定
+        const activeRing = state.rings[state.currentTargetIdx];
+        if (activeRing && activeRing.state === "active") {
+          const dist = Math.hypot(state.ballPos.x - activeRing.x, state.ballPos.z - activeRing.z);
+          if (dist <= activeRing.radius) {
+            state.dwellTimer += dt;
+            const ratio = Math.min(1, state.dwellTimer / DWELL_REQUIRED);
+            activeRing.progMesh.scale.set(ratio, ratio, 1);
+
+            if (state.dwellTimer >= DWELL_REQUIRED) {
+              state.dwellTimer = 0;
+              playTone(620 + state.currentTargetIdx * 70, "sine", 0.16, 0.13);
+
+              if (state.stage >= 10) {
+                activeRing.state = "armed";
+                activeRing.armTimer = 0;
+                activeRing.discMesh.material.map = createNumberTexture(activeRing.index + 1, "armed");
+                activeRing.discMesh.material.needsUpdate = true;
+                activeRing.progMesh.material.color.setHex(0xe879f9);
+                activeRing.progMesh.scale.set(1, 1, 1);
+              } else {
+                activeRing.state = "done";
+                activeRing.discMesh.material.map = createNumberTexture(activeRing.index + 1, "done");
+                activeRing.discMesh.material.needsUpdate = true;
+                activeRing.progMesh.scale.set(0.001, 0.001, 1);
+              }
+
+              state.currentTargetIdx++;
+              if (state.currentTargetIdx >= state.rings.length) {
+                updateHUD();
+                handleSubLevelClear();
+              } else {
+                const nextR = state.rings[state.currentTargetIdx];
+                nextR.state = "active";
+                nextR.discMesh.material.map = createNumberTexture(nextR.index + 1, "active");
+                nextR.discMesh.material.needsUpdate = true;
+                updateHUD();
+              }
+            }
+          } else {
+            state.dwellTimer = Math.max(0, state.dwellTimer - dt * 2.5);
+            const ratio = Math.max(0.001, state.dwellTimer / DWELL_REQUIRED);
+            activeRing.progMesh.scale.set(ratio, ratio, 1);
+          }
+        }
+      }
+
+      function updateCamera() {
+        if (state.sideCamera) {
+          camera.position.lerp(new THREE.Vector3(10.8, 6.4, 2.2), 0.1);
+          camera.lookAt(0, PIVOT_Y - 0.4, 0.4);
+        } else {
+          camera.position.lerp(new THREE.Vector3(0, 12.4, 9.4), 0.1);
+          camera.lookAt(0, PIVOT_Y - 0.5, 0.8);
+        }
+      }
+
+      let lastTime = performance.now();
+      function animate(now) {
+        requestAnimationFrame(animate);
+        const dt = Math.min(0.04, (now - lastTime) / 1000);
+        lastTime = now;
+        stepPhysics(dt);
+        updateCamera();
+        renderer.render(scene, camera);
+      }
+
+      window.addEventListener("resize", () => {
+        camera.aspect = window.innerWidth / window.innerHeight;
+        camera.updateProjectionMatrix();
+        renderer.setSize(window.innerWidth, window.innerHeight);
+      });
+
+      // ==========================================
+      // 隱藏選關視窗與按鈕事件
+      // ==========================================
+      const portalModal = document.getElementById("portal-modal");
+      const presetGrid = document.getElementById("stage-preset-grid");
+      const customInput = document.getElementById("custom-stage-input");
+
+      PRESET_STAGES.forEach((item) => {
+        const btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = "stage-chip";
+        btn.innerHTML = `<strong>第 ${item.s} 關</strong><span>${item.tag}</span>`;
+        btn.addEventListener("click", (e) => {
+          e.stopPropagation();
+          ensureAudio();
+          portalModal.style.display = "none";
+          loadLevel(item.s, 1);
+        });
+        presetGrid.appendChild(btn);
+      });
+
+      document.getElementById("glyph-trigger").addEventListener("click", (e) => {
+        e.stopPropagation();
+        ensureAudio();
+        customInput.value = state.stage;
+        state.paused = true;
+        portalModal.style.display = "flex";
+      });
+
+      document.getElementById("btn-custom-go").addEventListener("click", (e) => {
+        e.stopPropagation();
+        ensureAudio();
+        const val = parseInt(customInput.value, 10) || 1;
+        portalModal.style.display = "none";
+        loadLevel(val, 1);
+      });
+
+      document.getElementById("btn-close-portal").addEventListener("click", (e) => {
+        e.stopPropagation();
+        portalModal.style.display = "none";
+        state.paused = false;
+      });
+
+      document.getElementById("btn-reroll").addEventListener("click", (e) => {
+        e.stopPropagation();
+        ensureAudio();
+        loadLevel(state.stage, state.subLevel);
+      });
+
+      document.getElementById("btn-reset-ball").addEventListener("click", (e) => {
+        e.stopPropagation();
+        ensureAudio();
+        state.fallMode = null;
+        state.ballPos.set(0, BALL_RADIUS, BOARD_LENGTH - 1.15);
+        state.ballVel.set(0, 0, 0);
+        applyInputAxes(0, 0);
+      });
+
+      const btnHold = document.getElementById("btn-hold");
+      btnHold.addEventListener("click", (e) => {
+        e.stopPropagation();
+        state.holdAngle = !state.holdAngle;
+        btnHold.textContent = state.holdAngle ? "保持傾角" : "放開回平";
+        btnHold.classList.toggle("on", state.holdAngle);
+        if (!state.holdAngle) applyInputAxes(0, 0);
+      });
+
+      const btnCam = document.getElementById("btn-cam");
+      btnCam.addEventListener("click", (e) => {
+        e.stopPropagation();
+        state.sideCamera = !state.sideCamera;
+        btnCam.textContent = state.sideCamera ? "側視" : "俯視";
+        btnCam.classList.toggle("on", state.sideCamera);
+      });
+
+      loadLevel(1, 1);
+      requestAnimationFrame(animate);
+    })();
+  </script>
+</body>
+</html>
